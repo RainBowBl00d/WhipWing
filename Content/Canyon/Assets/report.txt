@@ -1,0 +1,41 @@
+
+──────────────────────────────────────────────────────────────────────────────────────────  GAEA BUILD SWARM  2.2.9.0 ──
+
+                                                                                         
+          Filename:  │ G:/Unreal Projects/WhipWing/Content/Canyon/Assets/Canyon.terrain  
+    Build Location:  │ G:\Unreal Projects\WhipWing\Content\Canyon\Assets                 
+        Build Type:  │ Standard                                                          
+  Build Resolution:  │ 512 × 512                                                         
+     Build Profile:  │ None / Last Saved Settings                                        
+             Nodes:  │ 19 to build                                                       
+                     │ 02 to export                                                      
+                                                                                         
+892 - Mesher - failed!
+
+──────────────────────────────────────────────────────────────────────────────────────────  GAEA BUILD SWARM  2.2.9.0 ──
+
+                                                                                         
+          Filename:  │ G:/Unreal Projects/WhipWing/Content/Canyon/Assets/Canyon.terrain  
+    Build Location:  │ G:\Unreal Projects\WhipWing\Content\Canyon\Assets                 
+        Build Type:  │ Standard                                                          
+  Build Resolution:  │ 512 × 512                                                         
+     Build Profile:  │ None / Last Saved Settings                                        
+             Nodes:  │ 19 to build                                                       
+                     │ 02 to export                                                      
+                                                                                         
+
+──────────────────────────────────────────────────────────────────────────────────────────────────────── Build Report ──
+
+              Build Results                             Statistics              
+                                                                                
+          Result: │ Success                       Canyon │ 0:00:00.335          
+      Resolution: │ 512                      TextureBase │ 0:00:00.861          
+      Node Count: │ 19                             Trees │ 0:00:01.362          
+      Start Time: │ 05/04/2026 17:32:43              Sea │ 0:00:00.685          
+        End Time: │ 05/04/2026 17:32:47       DriftNoise │ 0:00:00.696          
+        Duration: │ 00:00:04.5446373                     │                      
+  Non-Build Time: │ 00:00:00.1506372             Fastest │ Mesher @ 0:00:00     
+                                                 Slowest │ Trees @ 0:00:01.362  
+                                                                                
+                                               * nodes that took <100ms are     
+                                                         excluded.              

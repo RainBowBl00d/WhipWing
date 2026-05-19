@@ -1,0 +1,74 @@
+// Copyright (c) 2021 LootLocker
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "LootLockerResponse.h"
+#include "LootLockerPlayerData.h"
+#include "JsonObjectConverter.h"
+#include "LootLockerPersistentStorageRequestHandler.generated.h"
+
+USTRUCT(BlueprintType)
+struct FLootLockerPersistentStorageItem {
+    GENERATED_BODY()
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "LootLocker")
+    FString key = "";
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "LootLocker")
+    FString value = "";
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "LootLocker")
+    bool is_public = false;
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "LootLocker")
+    int order = 0;
+};
+
+USTRUCT(BlueprintType)
+struct FLootLockerPersistentStorageItems {
+    GENERATED_BODY()
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "LootLocker")
+    TArray<FLootLockerPersistentStorageItem> payload;
+};
+
+
+USTRUCT(BlueprintType)
+struct FLootLockerPersistentStorageItemsResponse : public FLootLockerResponse
+{
+    GENERATED_BODY()
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "LootLocker")
+    TArray<FLootLockerPersistentStorageItem> payload;
+    TMap<FString, FString> Map;
+};
+
+USTRUCT(BlueprintType)
+struct FLootLockerPersistentStorageItemResponse : public FLootLockerResponse
+{
+    GENERATED_BODY()
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "LootLocker")
+    FLootLockerPersistentStorageItem payload;
+};
+
+DECLARE_DELEGATE_OneParam(FPersistentStorageItemsResponseDelegate, FLootLockerPersistentStorageItemsResponse);
+DECLARE_DELEGATE_OneParam(FPersistentStorageItemResponseDelegate, FLootLockerPersistentStorageItemResponse);
+
+/**
+ * 
+ */
+UCLASS()
+class LOOTLOCKERSDK_API ULootLockerPersistentStorageRequestHandler : public UObject
+{
+public:
+	GENERATED_BODY()
+    
+    ULootLockerPersistentStorageRequestHandler() {};
+    
+	static FString GetEntirePersistentStorage(const FLootLockerPlayerData& PlayerData, const FPersistentStorageItemsResponseDelegate& OnCompletedRequest);
+
+    static FString GetItemFromPersistentStorage(const FLootLockerPlayerData& PlayerData, const FString& Key, const FPersistentStorageItemResponseDelegate& OnCompletedRequest);
+
+    static FString AddItemsToPersistentStorage(const FLootLockerPlayerData& PlayerData, const FLootLockerPersistentStorageItems& Items, const FPersistentStorageItemsResponseDelegate& OnCompletedRequest);
+    
+    static FString AddItemToPersistentStorage(const FLootLockerPlayerData& PlayerData, const FLootLockerPersistentStorageItem& Item, const FPersistentStorageItemResponseDelegate& OnCompletedRequest);
+
+    static FString DeleteItemFromPersistentStorage(const FLootLockerPlayerData& PlayerData, const FString& Key, const FPersistentStorageItemsResponseDelegate& OnCompletedRequest);
+
+    static FString GetPlayerPersistentStorage(const FLootLockerPlayerData& PlayerData, const FString& PlayerId, const FPersistentStorageItemsResponseDelegate& OnCompletedRequest);
+};

@@ -1,0 +1,366 @@
+// Copyright (c) 2021 LootLocker
+
+
+#include "LootLockerStateData.h"
+
+#include "LootLockerPlayerData.h"
+#include "LootLockerPresenceManager.h"
+#include "LootLockerSDK.h"
+#include "GameAPI/LootLockerPlayerRequestHandler.h"
+#include "Kismet/GameplayStatics.h"
+#include "LootLockerLogger.h"
+
+#if ENGINE_MAJOR_VERSION < 5
+const FString ULootLockerStateData::BaseSaveSlot = "LootLocker";
+const FString ULootLockerStateData::MetaDataSaveSlot = BaseSaveSlot+"_META";
+const FString ULootLockerStateData::PlayerDataSaveSlot = BaseSaveSlot + "_pd_";;
+#endif
+
+FLootLockerStateMetaData ULootLockerStateData::ActiveMetaData = FLootLockerStateMetaData();
+bool ULootLockerStateData::isMetadataLoaded = false;
+TMap<FString, TSharedPtr<FLootLockerPlayerData>> ULootLockerStateData::ActivePlayerData = TMap<FString, TSharedPtr<FLootLockerPlayerData>>();
+FLootLockerPlayerData ULootLockerStateData::EmptyPlayerData = FLootLockerPlayerData();
+
+ULootLockerStateData::ULootLockerStateData()
+{
+	ActiveMetaData = LoadMetaState();
+}
+
+FString ULootLockerStateData::GenerateNewGuestIdentifier() 
+{
+	if (!isMetadataLoaded)
+	{
+		LoadMetaState();
+	}
+	if (ActiveMetaData.SavedPlayerStateUlids.Num() == 0 && FGenericPlatformMisc::GetDeviceId != nullptr)
+	{
+		// For backwards compatibility, base the first guest user on the device id
+		return FGenericPlatformMisc::GetDeviceId();
+	}
+	return ""; // Let backend generate an identifier
+}
+
+FLootLockerStateMetaData ULootLockerStateData::LoadMetaState()
+{
+	if (isMetadataLoaded)
+	{
+		return ActiveMetaData;
+	}
+	if (ULootLockerStateMetaDataSaveGame* LoadedMetaState = Cast<ULootLockerStateMetaDataSaveGame>(UGameplayStatics::LoadGameFromSlot(MetaDataSaveSlot, SaveIndex)))
+	{
+		ActiveMetaData.SavedPlayerStateUlids = LoadedMetaState->SavedPlayerStateUlids;
+		ActiveMetaData.DefaultPlayer = LoadedMetaState->DefaultPlayer;
+		if (ActiveMetaData.DefaultPlayer.IsEmpty() && ActiveMetaData.SavedPlayerStateUlids.Num() == 1)
+		{
+			ActiveMetaData.DefaultPlayer = ActiveMetaData.SavedPlayerStateUlids[0];
+		}
+		isMetadataLoaded = true;
+
+		return ActiveMetaData;
+	}
+
+	FLootLockerStateMetaData NewMetaState;
+	SetMetaState(NewMetaState);
+	return ActiveMetaData;
+}
+
+void ULootLockerStateData::SetMetaState(FLootLockerStateMetaData& updatedMetaData)
+{
+	ULootLockerStateMetaDataSaveGame* newSave = NewObject<ULootLockerStateMetaDataSaveGame>();
+	newSave->DefaultPlayer = updatedMetaData.DefaultPlayer;
+	newSave->SavedPlayerStateUlids = updatedMetaData.SavedPlayerStateUlids;
+	if (UGameplayStatics::SaveGameToSlot(newSave, MetaDataSaveSlot, SaveIndex))
+	{
+		ActiveMetaData.DefaultPlayer = updatedMetaData.DefaultPlayer;
+		ActiveMetaData.SavedPlayerStateUlids = updatedMetaData.SavedPlayerStateUlids;
+		isMetadataLoaded = true;
+		FLootLockerLogger::LogVeryVerbose(TEXT("Saved LootLocker meta state to disk"));
+		return;
+	}
+	FLootLockerLogger::LogWarning(TEXT("Failed to save LootLocker meta state to disk"));
+}
+
+TSharedPtr<FLootLockerPlayerData> ULootLockerStateData::LoadPlayerData(const FString& PlayerUlid /* = "" */, bool makeActive /*= true */)
+{
+	FString DefaultPlayerUlid = GetDefaultPlayerUlid();
+	FString TargetPlayerUlid = PlayerUlid.IsEmpty() ? DefaultPlayerUlid : PlayerUlid;
+	if (TargetPlayerUlid.IsEmpty())
+	{
+		//Nothing more to load, return
+		return nullptr;
+	}
+
+	if (TSharedPtr<FLootLockerPlayerData>* ActivePlayer = ActivePlayerData.Find(TargetPlayerUlid))
+	{
+		if (!TargetPlayerUlid.Equals((*ActivePlayer)->PlayerUlid, ESearchCase::IgnoreCase))
+		{
+			// Active player is invalid, reset
+			ULootLockerPresenceManager::NotifyPlayerDeactivated(TargetPlayerUlid);
+			ActivePlayerData.Remove(TargetPlayerUlid);
+		}
+		else
+		{
+			return *ActivePlayer;
+		}
+				
+	}
+
+	FString TargetSaveSlot = PlayerDataSaveSlot + "_" + TargetPlayerUlid;
+	if (ULootLockerPlayerDataSaveGame* LoadedState = Cast<ULootLockerPlayerDataSaveGame>(UGameplayStatics::LoadGameFromSlot(TargetSaveSlot, SaveIndex)))
+	{
+		if (DefaultPlayerUlid.IsEmpty())
+		{
+			SetDefaultPlayerUlid(TargetPlayerUlid);
+		}
+		FLootLockerPlayerData PlayerData = FLootLockerPlayerData::Create(LoadedState->Token, LoadedState->RefreshToken, LoadedState->PlayerIdentifier, LoadedState->PlayerUlid, LoadedState->PlayerPublicUid, LoadedState->PlayerName, LoadedState->WhiteLabelEmail, LoadedState->WhiteLabelToken, LoadedState->CurrentPlatform, LoadedState->LastSignIn, LoadedState->PlayerCreatedAt);
+		
+		FLootLockerLogger::LogVerbose(FString::Printf(TEXT("Loaded LootLocker state from disk for player with ulid %s"), *TargetPlayerUlid));
+		if (makeActive)
+		{
+			ActivePlayerData.Add(LoadedState->PlayerUlid, MakeShared<FLootLockerPlayerData>(PlayerData));
+			ULootLockerPresenceManager::NotifyPlayerActivated(LoadedState->PlayerUlid);
+			TSharedPtr<FLootLockerPlayerData>* ActivePlayer = ActivePlayerData.Find(LoadedState->PlayerUlid);
+			if (ActivePlayer != nullptr)
+			{
+				return *ActivePlayer;
+			}
+		}
+		return MakeShared<FLootLockerPlayerData>(PlayerData);
+	}
+	FLootLockerLogger::LogWarning(FString::Printf(TEXT("Found no persisted LootLocker state for player with ulid %s"), *TargetPlayerUlid));
+	return nullptr;
+}
+
+void ULootLockerStateData::SavePlayerData(const FLootLockerPlayerData& PlayerData)
+{
+	if (PlayerData.PlayerUlid.IsEmpty())
+	{
+		//Nothing more to do, return
+		return;
+	}
+
+	FString TargetSaveSlot = PlayerDataSaveSlot + "_" + PlayerData.PlayerUlid;
+	if (!UGameplayStatics::SaveGameToSlot(ULootLockerPlayerDataSaveGame::Create(PlayerData), TargetSaveSlot, SaveIndex)) {
+		FLootLockerLogger::LogWarning(FString::Printf(TEXT("Failed to save LootLocker state to disk for player with ulid %s"), *PlayerData.PlayerUlid));
+		return;
+	}
+	FLootLockerLogger::LogVerbose(FString::Printf(TEXT("Saved LootLocker player state to disk for player with ulid %s"), *PlayerData.PlayerUlid));
+
+	FLootLockerStateMetaData metaState = LoadMetaState();
+	if (metaState.DefaultPlayer.IsEmpty() || ActivePlayerData.Num() == 0)
+	{
+		metaState.DefaultPlayer = PlayerData.PlayerUlid;
+		SetDefaultPlayerUlid(PlayerData.PlayerUlid);
+	}
+	if (!metaState.SavedPlayerStateUlids.Contains(PlayerData.PlayerUlid))
+	{
+		metaState.SavedPlayerStateUlids.Add(PlayerData.PlayerUlid);
+		SetMetaState(metaState);
+	}
+	ActivePlayerData.Add(PlayerData.PlayerUlid, MakeShared<FLootLockerPlayerData>(PlayerData));
+	ULootLockerPresenceManager::NotifyPlayerActivated(PlayerData.PlayerUlid);
+}
+
+FString ULootLockerStateData::GetDefaultPlayerUlid()
+{
+	return LoadMetaState().DefaultPlayer;
+}
+
+bool ULootLockerStateData::SetDefaultPlayerUlid(const FString& PlayerUlid)
+{
+	if (!SaveStateExistsForPlayer(PlayerUlid))
+	{
+		return false;
+	}
+
+	FLootLockerStateMetaData metaState = LoadMetaState();
+	if (metaState.DefaultPlayer.Equals(PlayerUlid))
+	{
+		return false;
+	}
+
+	metaState.DefaultPlayer = PlayerUlid;
+	metaState.SavedPlayerStateUlids.AddUnique(PlayerUlid);
+	SetMetaState(metaState);
+
+	return true;
+}
+
+bool ULootLockerStateData::SaveStateExistsForPlayer(const FString& PlayerUlid /* = "" */)
+{
+	if (PlayerUlid.IsEmpty())
+	{
+		return false;
+	}
+
+	if (ActivePlayerData.Contains(PlayerUlid))
+	{
+		return true;
+	}
+
+	if (!isMetadataLoaded)
+	{
+		LoadMetaState();
+		if (!isMetadataLoaded)
+		{
+			return false;
+		}
+	}
+	return ActiveMetaData.SavedPlayerStateUlids.Contains(PlayerUlid);
+}
+
+bool ULootLockerStateData::MakePlayerActive(const FString& PlayerUlid)
+{
+	if (PlayerUlid.IsEmpty())
+	{
+		//Nothing more to load, return
+		return false;
+	}
+
+	if (ActivePlayerData.Contains(PlayerUlid))
+	{
+		return true;
+	}
+
+	TSharedPtr<FLootLockerPlayerData> playerData = LoadPlayerData(PlayerUlid, true);
+	return playerData != nullptr;
+}
+
+const FLootLockerPlayerData& ULootLockerStateData::GetAndActivateSavedStateOrDefaultOrEmptyForPlayer(const FString& PlayerUlid /* = "" */)
+{
+	const TSharedPtr<FLootLockerPlayerData> playerData = LoadPlayerData(PlayerUlid, true);
+	if (playerData != nullptr)
+	{
+		return *playerData;
+	}
+	return EmptyPlayerData;
+}
+
+const TSharedPtr<FLootLockerPlayerData> ULootLockerStateData::GetStateForPlayerOrDefaultFromCache(const FString& PlayerUlid /* = "" */)
+{
+	return LoadPlayerData(PlayerUlid, false);
+}
+
+const TSharedPtr<FLootLockerPlayerData> ULootLockerStateData::GetStateForPlayerOrDefaultIfActive(const FString& PlayerUlid /* = "" */)
+{
+	if (ActivePlayerData.Num() == 0)
+	{
+		return nullptr;
+	}
+	FString UlidToUse = PlayerUlid.IsEmpty() ? GetDefaultPlayerUlid() : PlayerUlid;
+	if (UlidToUse.IsEmpty())
+	{
+		return nullptr;
+	}
+
+	TSharedPtr<FLootLockerPlayerData>* ActivePlayer = ActivePlayerData.Find(UlidToUse);
+	if (ActivePlayer == nullptr)
+	{
+		return nullptr;
+	}
+	
+	return *ActivePlayer;
+}
+
+bool ULootLockerStateData::ClearSavedStateForPlayer(const FString& PlayerUlid)
+{
+	if (PlayerUlid.IsEmpty())
+	{
+		//Nothing more to load, return
+		return false;
+	}
+
+	FString TargetSaveSlot = PlayerDataSaveSlot + "_" + PlayerUlid;
+	UGameplayStatics::DeleteGameInSlot(TargetSaveSlot, SaveIndex);
+
+	FLootLockerStateMetaData metaState = LoadMetaState();
+	metaState.SavedPlayerStateUlids.Remove(PlayerUlid);
+	if (PlayerUlid.Equals(GetDefaultPlayerUlid()))
+	{
+		metaState.DefaultPlayer = "";
+	}
+
+	SetMetaState(metaState);
+	ActivePlayerData.Remove(PlayerUlid);
+	ULootLockerPresenceManager::NotifyPlayerDeactivated(PlayerUlid);
+	return true;
+}
+
+void ULootLockerStateData::ClearAllSavedStates()
+{
+	FLootLockerStateMetaData metaState = LoadMetaState();
+	TArray<FString> localLoadedUlidListCopy = metaState.SavedPlayerStateUlids;
+	for (const FString& playerUlid : localLoadedUlidListCopy)
+	{
+		ClearSavedStateForPlayer(playerUlid);
+	}
+	ActivePlayerData.Empty();
+}
+
+void ULootLockerStateData::ClearAllSavedStatesExceptForPlayer(const FString& PlayerUlid) 
+{
+	FLootLockerStateMetaData metaState = LoadMetaState();
+	TArray<FString> localLoadedUlidListCopy = metaState.SavedPlayerStateUlids;
+	for (const FString& playerUlid : localLoadedUlidListCopy)
+	{
+		if (!playerUlid.Equals(PlayerUlid, ESearchCase::IgnoreCase))
+		{
+			ClearSavedStateForPlayer(playerUlid);
+		}
+	}
+	SetDefaultPlayerUlid(PlayerUlid);
+}
+
+TArray<FString> ULootLockerStateData::GetActivePlayerUlids()
+{
+	TArray<FString> OutUlids;
+	ActivePlayerData.GetKeys(OutUlids);
+	return OutUlids;
+}
+
+TArray<FString> ULootLockerStateData::GetCachedPlayerUlids()
+{
+	return ActiveMetaData.SavedPlayerStateUlids;
+}
+
+void ULootLockerStateData::SetPlayerUlidToInactive(const FString& PlayerUlid)
+{
+	if (PlayerUlid.IsEmpty())
+	{
+		//Nothing more to load, return
+		return;
+	}
+
+	ActivePlayerData.Remove(PlayerUlid);
+	ULootLockerPresenceManager::NotifyPlayerDeactivated(PlayerUlid);
+}
+
+void ULootLockerStateData::SetAllPlayersToInactive()
+{
+	for (const TPair<FString, TSharedPtr<FLootLockerPlayerData>>& activePlayerPair : ActivePlayerData)
+	{
+		ULootLockerPresenceManager::NotifyPlayerDeactivated(activePlayerPair.Key);
+	}
+	ActivePlayerData.Empty();
+}
+
+void ULootLockerStateData::SetAllPlayersToInactiveExceptForPlayer(const FString& PlayerUlid)
+{
+	if (PlayerUlid.IsEmpty())
+	{
+		//Nothing more to load, return
+		return;
+	}
+
+	TArray<FString> ActiveKeys;
+	ActivePlayerData.GetKeys(ActiveKeys);
+	for (const FString& activePlayerUlid : ActiveKeys)
+	{
+		if (!activePlayerUlid.Equals(PlayerUlid, ESearchCase::IgnoreCase))
+		{
+			ActivePlayerData.Remove(activePlayerUlid);
+			ULootLockerPresenceManager::NotifyPlayerDeactivated(activePlayerUlid);
+		}
+	}
+	SetDefaultPlayerUlid(PlayerUlid);
+}

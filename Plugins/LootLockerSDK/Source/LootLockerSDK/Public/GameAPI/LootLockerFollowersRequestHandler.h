@@ -1,0 +1,111 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "LootLockerResponse.h"
+#include "LootLockerPlayerData.h"
+#include "LootLockerFollowersRequestHandler.generated.h"
+
+
+//==================================================
+// Data Type Definitions
+//==================================================
+
+
+/**
+ * Represents a single follower or following player
+ */
+USTRUCT(BlueprintType, Category = "LootLocker")
+struct FLootLockerFollower
+{
+    GENERATED_BODY()
+
+    /** The ULID of the player. */
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "LootLocker")
+    FString Player_id = "";
+
+    /** The name (if any has been set) of the player. */
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "LootLocker")
+    FString Player_name = "";
+
+    /** The public UID of the player. */
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "LootLocker")
+    FString Publicuid = "";
+
+    /** When the player's account was created. */
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "LootLocker")
+    FString Createdat = "";
+};
+
+//==================================================
+// Response Definitions
+//==================================================
+
+
+/**
+ * Response struct for listing followers or following players.
+ */
+USTRUCT(BlueprintType, Category = "LootLocker")
+struct FLootLockerListFollowersResponse : public FLootLockerResponse
+{
+    GENERATED_BODY()
+
+    /** List of followers for the specified player. */
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "LootLocker")
+    TArray<FLootLockerFollower> Followers;
+
+    /** Pagination data for the request. */
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "LootLocker")
+    FLootLockerKeyBasedPagination Pagination;
+};
+
+/**
+ * Response struct for follow/unfollow actions. Empty unless the request failed
+ */
+USTRUCT(BlueprintType, Category = "LootLocker")
+struct FLootLockerFollowActionResponse : public FLootLockerResponse
+{
+    GENERATED_BODY()
+};
+
+//==================================================
+// Delegate Definitions
+//==================================================
+
+/**
+ * C++ response delegate for listing followers/following.
+ */
+DECLARE_DELEGATE_OneParam(FLootLockerListFollowersResponseDelegate, FLootLockerListFollowersResponse);
+
+/**
+ * C++ response delegate for follow/unfollow actions.
+ */
+DECLARE_DELEGATE_OneParam(FLootLockerFollowActionResponseDelegate, FLootLockerFollowActionResponse);
+
+
+//==================================================
+// API Class Definition
+//==================================================
+
+UCLASS()
+class LOOTLOCKERSDK_API ULootLockerFollowersRequestHandler : public UObject
+{
+    GENERATED_BODY()
+public:
+    ULootLockerFollowersRequestHandler() {};
+
+    static FString ListFollowers(const FLootLockerPlayerData& PlayerData, const FString& PlayerPublicId, const FLootLockerListFollowersResponseDelegate& OnResponseCompleted);
+    static FString ListFollowersPaginated(const FLootLockerPlayerData& PlayerData, const FString& PlayerPublicId, const FString& Cursor, int32 Count, const FLootLockerListFollowersResponseDelegate& OnResponseCompleted);
+
+    static FString ListFollowers(const FLootLockerPlayerData& PlayerData, const FLootLockerListFollowersResponseDelegate& OnResponseCompleted);
+    static FString ListFollowersPaginated(const FLootLockerPlayerData& PlayerData, const FString& Cursor, int32 Count, const FLootLockerListFollowersResponseDelegate& OnResponseCompleted);
+
+    static FString ListFollowing(const FLootLockerPlayerData& PlayerData, const FString& PlayerPublicId, const FLootLockerListFollowersResponseDelegate& OnResponseCompleted);
+    static FString ListFollowingPaginated(const FLootLockerPlayerData& PlayerData, const FString& PlayerPublicId, const FString& Cursor, int32 Count, const FLootLockerListFollowersResponseDelegate& OnResponseCompleted);
+
+    static FString ListFollowing(const FLootLockerPlayerData& PlayerData, const FLootLockerListFollowersResponseDelegate& OnResponseCompleted);
+    static FString ListFollowingPaginated(const FLootLockerPlayerData& PlayerData, const FString& Cursor, int32 Count, const FLootLockerListFollowersResponseDelegate& OnResponseCompleted);
+
+    static FString FollowPlayer(const FLootLockerPlayerData& PlayerData, const FString& PlayerPublicId, const FLootLockerFollowActionResponseDelegate& OnResponseCompleted);
+
+    static FString UnfollowPlayer(const FLootLockerPlayerData& PlayerData, const FString& PlayerPublicId, const FLootLockerFollowActionResponseDelegate& OnResponseCompleted);
+};

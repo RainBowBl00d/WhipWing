@@ -1,0 +1,119 @@
+// Copyright (c) 2021 LootLocker
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "LootLockerPlayerData.h"
+#include "LootLockerResponse.h"
+#include "LootLockerAssetInstancesRequestHandler.generated.h"
+
+
+
+USTRUCT(BlueprintType)
+struct FLootLockerAssetInstanceStorageItem {
+    GENERATED_BODY()
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "LootLocker")
+    FString key = "";
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "LootLocker")
+    FString value = "";
+};
+
+USTRUCT(BlueprintType)
+struct FLootLockerAssetInstanceStorageResponseItem : public FLootLockerAssetInstanceStorageItem {
+    GENERATED_BODY()
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "LootLocker")
+    int id = 0;
+};
+
+USTRUCT(BlueprintType)
+struct FLootLockerAssetInstanceStorageItems {
+    GENERATED_BODY()
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "LootLocker")
+    TArray<FLootLockerAssetInstanceStorageItem> storage;
+};
+
+USTRUCT(BlueprintType)
+struct FLootLockerAssetInstanceStorageItemsResponse : public FLootLockerResponse
+{
+    GENERATED_BODY()
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "LootLocker")
+    TArray<FLootLockerAssetInstanceStorageResponseItem> storage;
+};
+
+USTRUCT(BlueprintType)
+struct FLootLockerAssetInstanceStorageItemResponse : public FLootLockerResponse
+{
+    GENERATED_BODY()
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "LootLocker")
+    FLootLockerAssetInstanceStorageResponseItem storage;
+};
+
+USTRUCT(BlueprintType)
+struct FLootLockerLootBoxItem {
+    GENERATED_BODY()
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "LootLocker")
+    int asset_id = 0;
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "LootLocker")
+    int asset_variation_id = 0;
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "LootLocker")
+    int asset_rental_option_id = 0;
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "LootLocker")
+    int weight = 0;
+};
+
+USTRUCT(BlueprintType)
+struct FLootLockerLootBoxContentResponse : public FLootLockerResponse
+{
+    GENERATED_BODY()
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "LootLocker")
+    TArray<FLootLockerLootBoxItem> contents;
+};
+
+USTRUCT(BlueprintType)
+struct FLootLockerOpenLootBoxResponse : public FLootLockerResponse
+{
+    GENERATED_BODY()
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "LootLocker")
+    bool check_grant_notifications = false;
+};
+
+USTRUCT(BlueprintType)
+struct FLootLockerDeleteAssetInstanceResponse : public FLootLockerResponse
+{
+    GENERATED_BODY()
+};
+
+DECLARE_DELEGATE_OneParam(FAssetInstanceStorageItemsResponseDelegate, FLootLockerAssetInstanceStorageItemsResponse);
+DECLARE_DELEGATE_OneParam(FAssetInstanceStorageItemResponseDelegate, FLootLockerAssetInstanceStorageItemResponse);
+DECLARE_DELEGATE_OneParam(FLootBoxContentResponseDelegate, FLootLockerLootBoxContentResponse);
+DECLARE_DELEGATE_OneParam(FOpenLootBoxResponseDelegate, FLootLockerOpenLootBoxResponse);
+DECLARE_DELEGATE_OneParam(FDeleteAssetInstanceResponseDelegate, FLootLockerDeleteAssetInstanceResponse);
+
+
+UCLASS()
+class LOOTLOCKERSDK_API ULootLockerAssetInstancesRequestHandler : public UObject
+{
+public:
+    GENERATED_BODY()
+    ULootLockerAssetInstancesRequestHandler() {};
+    
+    static FString GetAllKeyValuePairsForAssetInstance(const FLootLockerPlayerData& PlayerData, int AssetInstanceId, const FAssetInstanceStorageItemsResponseDelegate& OnCompletedRequest);
+
+    static FString GetAllKeyValuePairsToAnInstanceForAssetInstance(const FLootLockerPlayerData& PlayerData, int AssetInstanceId, const FAssetInstanceStorageItemsResponseDelegate& OnCompletedRequest);
+    
+    static FString GetAKeyValuePairByIdForAssetInstance(const FLootLockerPlayerData& PlayerData, int AssetInstanceId, int StorageItemId, const FAssetInstanceStorageItemResponseDelegate& OnCompletedRequest);
+    
+    static FString CreateAKeyValuePairForAssetInstance(const FLootLockerPlayerData& PlayerData, int AssetInstanceId, const FLootLockerAssetInstanceStorageItem& Item, const FAssetInstanceStorageItemsResponseDelegate& OnCompletedRequest);
+    
+    static FString UpdateOneOrMoreKeyValuePairForAssetInstance(const FLootLockerPlayerData& PlayerData, int AssetInstanceId, const FLootLockerAssetInstanceStorageItems Items, const FAssetInstanceStorageItemsResponseDelegate& OnCompletedRequest);
+    
+    static FString UpdateAKeyValuePairByIdForAssetInstance(const FLootLockerPlayerData& PlayerData, int AssetInstanceId, int StorageItemId, const FLootLockerAssetInstanceStorageItem Item, const FAssetInstanceStorageItemResponseDelegate& OnCompletedRequest);
+    
+    static FString DeleteAKeyValuePairByIdForAssetInstance(const FLootLockerPlayerData& PlayerData, int AssetInstanceId, int StorageItemId, const FAssetInstanceStorageItemsResponseDelegate& OnCompletedRequest);
+    
+    static FString InspectLootBox(const FLootLockerPlayerData& PlayerData, int AssetInstanceId, const FLootBoxContentResponseDelegate& OnCompletedRequest);
+
+    static FString OpenLootBox(const FLootLockerPlayerData& PlayerData, int AssetInstanceId, const FOpenLootBoxResponseDelegate& OnCompletedRequest);
+
+    static FString DeleteAssetInstanceFromPlayerInventory(const FLootLockerPlayerData& PlayerData, int AssetInstanceID, const FDeleteAssetInstanceResponseDelegate& OnCompletedRequest);
+};
