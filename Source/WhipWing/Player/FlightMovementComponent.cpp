@@ -22,7 +22,11 @@ void UFlightMovementComponent::UpdateControllerTransforms(const FTransform& Left
 
 void UFlightMovementComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
-	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	if (!bIsFlightEnabled)
+	{
+		Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+		return;
+	}
 
 	if (!bHasControllerData)
 		return;
@@ -165,4 +169,27 @@ void UFlightMovementComponent::DrawDebugVisualization() const
 		FString::Printf(TEXT("Left ctrl:  X=%+.0f Y=%+.0f Z=%+.0f"), LP.X, LP.Y, LP.Z));
 	GEngine->AddOnScreenDebugMessage(8, 0.f, FColor::Orange,
 		FString::Printf(TEXT("Right ctrl: X=%+.0f Y=%+.0f Z=%+.0f"), RP.X, RP.Y, RP.Z));
+}
+float UFlightMovementComponent::GetCurrentSpeed() const
+{
+	return CurrentSpeed;
+}
+
+float UFlightMovementComponent::GetCurrentPitch() const
+{
+	return CurrentPitch;
+}
+
+void UFlightMovementComponent::SetFlightEnabled(bool bEnable)
+{
+	bIsFlightEnabled = bEnable;
+
+	// Kui liikumine lülitatakse välja, nullime igaks juhuks ka kiirused, 
+	// et tegelane ei jääks viimase kiirusega lõputult triivima
+	if (!bEnable)
+	{
+		CurrentSpeed = 0.f;
+		VerticalVelocity = 0.f;
+		bHasPreviousPositions = false;
+	}
 }

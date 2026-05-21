@@ -67,8 +67,20 @@ public:
 	void SetForwardDirection(float NewYaw);
 	float GetForwardYaw() const { return ForwardYaw; }
 
+	UFUNCTION(BlueprintCallable, Category = "Flight|Data")
+	float GetCurrentSpeed() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Flight|Data")
+	float GetCurrentPitch() const;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Debug")
 	bool bShowDebug = false;
+
+	UFUNCTION(BlueprintCallable, Category = "Flight|Control")
+	void SetFlightEnabled(bool bEnable);
+
+	// Funktsioon, et kontrollida, kas lendamine on hetkel lubatud
+	UFUNCTION(BlueprintPure, Category = "Flight|Control")
+	bool IsFlightEnabled() const { return bIsFlightEnabled; }
 
 protected:
 	virtual void BeginPlay() override;
@@ -95,4 +107,6 @@ private:
 	float CalculateTargetRoll() const;
 	bool DetectFlap(float DeltaTime);
 	void DrawDebugVisualization() const;
+
+	bool bIsFlightEnabled = true;
 };

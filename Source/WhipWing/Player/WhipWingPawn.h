@@ -22,6 +22,12 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	UFlightMovementComponent* FlightMovement;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	UMotionControllerComponent* LeftController;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	UMotionControllerComponent* RightController;
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -35,9 +41,4 @@ private:
 	UPROPERTY(VisibleAnywhere, Category = "Components")
 	UCameraComponent* Camera;
 
-	UPROPERTY(VisibleAnywhere, Category = "Components")
-	UMotionControllerComponent* LeftController;
-
-	UPROPERTY(VisibleAnywhere, Category = "Components")
-	UMotionControllerComponent* RightController;
 };
